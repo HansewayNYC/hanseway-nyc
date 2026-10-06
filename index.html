@@ -89,14 +89,8 @@
     @media (max-width: 820px) { .how-steps { grid-template-columns: 1fr; } }
 
     .brands-line { margin-top: 1.25rem; font-size: 1.05rem; letter-spacing: 0.04em; color: var(--ink); }
-    .logo-slots {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.75rem;
-      margin-top: 1.5rem;
-    }
-    .logo-slots .slot { background: #e8e4dc; min-height: 4.5rem; border-radius: 2px; }
-    @media (max-width: 820px) { .logo-slots { grid-template-columns: 1fr; } }
+    /* Block box so the mailto hit target matches the image (inline <a> + line-height:0 on .panel-frame can drop the click). */
+    .panel-frame > a[href^="mailto:"] { display: block; }
 
     footer {
       padding: 1.5rem 0 2.25rem;
@@ -169,11 +163,6 @@
       <p class="eyebrow">Brands</p>
       <h2>Selected European brands</h2>
       <p class="brands-line">Coming soon</p>
-      <div class="logo-slots" aria-label="Logo placeholders">
-        <div class="slot"></div>
-        <div class="slot"></div>
-        <div class="slot"></div>
-      </div>
     </div>
   </section>
 
