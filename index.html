@@ -64,7 +64,7 @@
       overflow: hidden;
     }
     .hero-stage video,
-    .hero-stage .hero-fallback {
+    .hero-stage .hero-poster {
       position: absolute;
       inset: 0;
       width: 100%;
@@ -73,8 +73,8 @@
       background: #0c2340;
     }
     .hero-stage video[hidden],
-    .hero-stage .hero-fallback[hidden] { display: none; }
-    #hero-narrated { z-index: 1; }
+    .hero-stage .hero-poster[hidden] { display: none; }
+    #hero-video { z-index: 1; }
     .hero-controls {
       position: absolute;
       z-index: 2;
@@ -86,12 +86,6 @@
       gap: 0.45rem;
       max-width: calc(100% - 1.5rem);
     }
-    .hero-lang {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem;
-    }
-    .hero-lang[hidden] { display: none; }
     .hero-controls button {
       font: inherit;
       font-size: 0.82rem;
@@ -113,6 +107,19 @@
       box-shadow: 0 0 0 5px var(--ink);
     }
     .hero-controls button[aria-pressed="true"] {
+      background: var(--ink);
+      color: var(--sand);
+      border-color: var(--ink);
+    }
+    .hero-controls button.hero-deutsch {
+      background: transparent;
+      color: var(--sand);
+      border-color: rgba(246, 243, 238, 0.55);
+      box-shadow: none;
+      font-size: 0.78rem;
+    }
+    .hero-controls button.hero-deutsch:hover { background: rgba(246, 243, 238, 0.16); }
+    .hero-controls button.hero-deutsch[aria-pressed="true"] {
       background: var(--ink);
       color: var(--sand);
       border-color: var(--ink);
@@ -167,199 +174,106 @@
 <body>
 
   <div class="panel-frame hero-stage">
-    <video
-      id="hero-silent"
-      poster="assets/video/hanseway-hero-poster.jpg"
+    <img
+      id="hero-poster"
+      class="hero-poster"
+      src="assets/video/hanseway-hero-poster.jpg"
       width="1920"
       height="1080"
-      muted
-      playsinline
-      autoplay
-      preload="metadata"
-      aria-label="HANSEWAY — Bridging Germany and the US for a Bigger Tomorrow."
-    >
-      <source id="hero-silent-source" src="assets/video/hanseway-hero-silent-v1.4-web.mp4" type="video/mp4" />
-    </video>
-    <video
-      id="hero-narrated"
-      poster="assets/video/hanseway-hero-poster.jpg"
-      width="1920"
-      height="1080"
-      muted
-      playsinline
-      preload="none"
-      hidden
-    ></video>
-    <img id="hero-fallback" class="hero-fallback" alt="HANSEWAY — Bridging Germany and the US for a Bigger Tomorrow." hidden />
+      alt="HANSEWAY — Bridging Germany and the US for a Bigger Tomorrow."
+    />
+    <video id="hero-video" poster="assets/video/hanseway-hero-poster.jpg" width="1920" height="1080" playsinline preload="none" hidden></video>
     <div class="hero-controls">
-      <button type="button" id="hero-watch" aria-expanded="false" aria-controls="hero-lang">Watch with Sound</button>
-      <div id="hero-lang" class="hero-lang" role="group" aria-label="Narration language" hidden>
-        <button type="button" data-lang="en" aria-pressed="false">English</button>
-        <button type="button" data-lang="de" aria-pressed="false">Deutsch</button>
-      </div>
-      <button type="button" id="hero-close" hidden aria-label="Return to silent video">Close</button>
+      <button type="button" id="hero-play" aria-pressed="false" aria-label="Watch video in English">Watch Video</button>
+      <button type="button" id="hero-deutsch" class="hero-deutsch" aria-pressed="false">Deutsch</button>
     </div>
   </div>
   <script>
     (function () {
-      var silent = document.getElementById("hero-silent");
-      var silentSource = document.getElementById("hero-silent-source");
-      var narrated = document.getElementById("hero-narrated");
-      var watchBtn = document.getElementById("hero-watch");
-      var langGroup = document.getElementById("hero-lang");
-      var closeBtn = document.getElementById("hero-close");
-      var fallback = document.getElementById("hero-fallback");
-      if (!silent || !narrated || !watchBtn || !langGroup || !closeBtn) return;
+      var poster = document.getElementById("hero-poster");
+      var video = document.getElementById("hero-video");
+      var playBtn = document.getElementById("hero-play");
+      var deutschBtn = document.getElementById("hero-deutsch");
+      if (!poster || !video || !playBtn || !deutschBtn) return;
 
       var sources = {
         en: "assets/video/hanseway-hero-en-v1-web.mp4",
         de: "assets/video/hanseway-hero-de-v1-web.mp4"
       };
       var heroLabel = "HANSEWAY — Bridging Germany and the US for a Bigger Tomorrow.";
-      var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      var usingNarrated = false;
       var playToken = 0;
-      var narratedGeneration = 0;
+      var generation = 0;
 
-      function showFallback() {
-        if (!fallback || !fallback.hidden) return;
-        fallback.src = "assets/video/hanseway-hero-poster.jpg";
-        fallback.hidden = false;
-        silent.hidden = true;
-        narrated.hidden = true;
+      function setPressed(lang) {
+        playBtn.setAttribute("aria-pressed", lang === "en" ? "true" : "false");
+        deutschBtn.setAttribute("aria-pressed", lang === "de" ? "true" : "false");
       }
 
-      silent.addEventListener("error", showFallback);
-      if (silentSource) silentSource.addEventListener("error", showFallback);
-
-      if (reduceMotion) {
-        silent.removeAttribute("autoplay");
-        silent.pause();
-      } else {
-        var attempt = silent.play();
-        if (attempt && typeof attempt.catch === "function") attempt.catch(function () {});
-      }
-
-      function setExpanded(open) {
-        watchBtn.setAttribute("aria-expanded", open ? "true" : "false");
-        langGroup.hidden = !open;
-        closeBtn.hidden = !open;
-      }
-
-      function clearNarrated() {
-        narratedGeneration++;
-        narrated.pause();
-        narrated.muted = true;
-        narrated.removeAttribute("src");
-        narrated.load();
-        delete narrated.dataset.lang;
-        delete narrated.dataset.generation;
-        narrated.hidden = true;
-        narrated.removeAttribute("aria-label");
-        var buttons = langGroup.querySelectorAll("button[data-lang]");
-        for (var i = 0; i < buttons.length; i++) buttons[i].setAttribute("aria-pressed", "false");
-      }
-
-      function returnToSilent() {
-        var time = narrated.currentTime || 0;
-        var atEnd = usingNarrated && (narrated.ended || (isFinite(narrated.duration) && time > narrated.duration - 0.35));
-        var wasNarrated = usingNarrated;
+      function showPoster() {
+        generation++;
         playToken++;
-        usingNarrated = false;
-        silent.hidden = false;
-        silent.muted = true;
-        silent.removeAttribute("aria-hidden");
-        clearNarrated();
-        setExpanded(false);
-        if (wasNarrated && fallback.hidden) {
-          if (atEnd || silent.ended) {
-            if (isFinite(silent.duration) && silent.duration > 0.05) {
-              try { silent.currentTime = silent.duration - 0.05; } catch (e) {}
-            }
-            silent.pause();
-          } else if (!reduceMotion) {
-            try { if (time > 0) silent.currentTime = time; } catch (e) {}
-            var resumed = silent.play();
-            if (resumed && typeof resumed.catch === "function") resumed.catch(function () {});
-          }
-        }
-        watchBtn.focus();
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+        delete video.dataset.lang;
+        delete video.dataset.generation;
+        video.hidden = true;
+        video.removeAttribute("aria-label");
+        poster.hidden = false;
+        setPressed("");
       }
 
-      watchBtn.addEventListener("click", function () {
-        if (watchBtn.getAttribute("aria-expanded") === "true") {
-          var current = langGroup.querySelector("button");
-          if (current) current.focus();
-          return;
-        }
-        setExpanded(true);
-        var first = langGroup.querySelector("button");
-        if (first) first.focus();
-      });
-
-      function playNarrated(lang, btn) {
+      function playLang(lang) {
         var src = sources[lang];
         if (!src) return;
         var token = ++playToken;
-        usingNarrated = true;
-        silent.pause();
-        silent.muted = true;
-        silent.setAttribute("aria-hidden", "true");
+        var gen = ++generation;
+        video.hidden = false;
+        video.muted = false;
+        video.setAttribute("playsinline", "");
+        video.setAttribute("aria-label", heroLabel + (lang === "de" ? " Deutsch." : " English."));
+        video.dataset.generation = String(gen);
+        setPressed(lang);
 
-        var buttons = langGroup.querySelectorAll("button[data-lang]");
-        for (var i = 0; i < buttons.length; i++) {
-          buttons[i].setAttribute("aria-pressed", buttons[i] === btn ? "true" : "false");
-        }
-
-        narrated.hidden = false;
-        narrated.muted = false;
-        narrated.removeAttribute("muted");
-        narrated.setAttribute("playsinline", "");
-        narrated.setAttribute("aria-label", heroLabel + (lang === "de" ? " Deutsch." : " English."));
-        setExpanded(true);
-
-        function onPlaying() {
+        video.addEventListener("playing", function onPlaying() {
           if (token !== playToken) return;
-          silent.hidden = true;
-        }
-        narrated.addEventListener("playing", onPlaying, { once: true });
+          poster.hidden = true;
+        }, { once: true });
 
-        var generation = ++narratedGeneration;
-        narrated.dataset.generation = String(generation);
-        if (narrated.dataset.lang === lang && narrated.currentSrc) {
-          try { narrated.currentTime = 0; } catch (e) {}
+        if (video.dataset.lang === lang && video.currentSrc) {
+          if (video.ended) {
+            try { video.currentTime = 0; } catch (e) {}
+          }
         } else {
-          narrated.dataset.lang = lang;
-          narrated.src = src;
+          video.dataset.lang = lang;
+          video.src = src;
         }
 
-        var started = narrated.play();
+        var started = video.play();
         if (started && typeof started.catch === "function") {
           started.catch(function () {
             if (token !== playToken) return;
-            returnToSilent();
+            showPoster();
+            playBtn.focus();
           });
         }
       }
 
-      langGroup.addEventListener("click", function (event) {
-        var btn = event.target.closest("button[data-lang]");
-        if (!btn) return;
-        playNarrated(btn.getAttribute("data-lang"), btn);
+      playBtn.addEventListener("click", function () { playLang("en"); });
+      deutschBtn.addEventListener("click", function () { playLang("de"); });
+
+      video.addEventListener("error", function () {
+        if (!video.getAttribute("src")) return;
+        if (video.dataset.generation !== String(generation)) return;
+        showPoster();
       });
 
-      narrated.addEventListener("error", function () {
-        if (!narrated.getAttribute("src")) return;
-        if (narrated.dataset.generation !== String(narratedGeneration)) return;
-        returnToSilent();
-      });
-
-      closeBtn.addEventListener("click", returnToSilent);
       document.addEventListener("keydown", function (event) {
         if (event.key !== "Escape") return;
-        if (watchBtn.getAttribute("aria-expanded") !== "true") return;
+        if (!video.getAttribute("src")) return;
         event.preventDefault();
-        returnToSilent();
+        showPoster();
+        playBtn.focus();
       });
     })();
   </script>
