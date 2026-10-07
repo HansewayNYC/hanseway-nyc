@@ -57,6 +57,77 @@
     .panel { display: block; width: 100%; height: auto; }
     .panel-frame { margin: 0; line-height: 0; background: #111; }
 
+    .hero-stage {
+      position: relative;
+      aspect-ratio: 16 / 9;
+      background: #0c2340;
+      overflow: hidden;
+    }
+    .hero-stage video,
+    .hero-stage .hero-poster {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #0c2340;
+    }
+    .hero-stage video[hidden],
+    .hero-stage .hero-poster[hidden] { display: none; }
+    #hero-video { z-index: 1; }
+    .hero-controls {
+      position: absolute;
+      z-index: 2;
+      left: max(0.9rem, env(safe-area-inset-left));
+      bottom: max(0.9rem, env(safe-area-inset-bottom));
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      max-width: calc(100% - 1.5rem);
+    }
+    .hero-controls button {
+      font: inherit;
+      font-size: 0.82rem;
+      letter-spacing: 0.03em;
+      line-height: 1.2;
+      padding: 0.65rem 0.95rem;
+      min-height: 44px;
+      border-radius: 999px;
+      border: 1px solid rgba(18, 18, 18, 0.14);
+      background: rgba(246, 243, 238, 0.94);
+      color: var(--ink);
+      cursor: pointer;
+      box-shadow: 0 1px 6px rgba(8, 18, 36, 0.28);
+    }
+    .hero-controls button:hover { background: var(--white); }
+    .hero-controls button:focus-visible {
+      outline: 2px solid var(--white);
+      outline-offset: 3px;
+      box-shadow: 0 0 0 5px var(--ink);
+    }
+    .hero-controls button[aria-pressed="true"] {
+      background: var(--ink);
+      color: var(--sand);
+      border-color: var(--ink);
+    }
+    .hero-controls button.hero-deutsch {
+      background: transparent;
+      color: var(--sand);
+      border-color: rgba(246, 243, 238, 0.55);
+      box-shadow: none;
+      font-size: 0.78rem;
+    }
+    .hero-controls button.hero-deutsch:hover { background: rgba(246, 243, 238, 0.16); }
+    .hero-controls button.hero-deutsch[aria-pressed="true"] {
+      background: var(--ink);
+      color: var(--sand);
+      border-color: var(--ink);
+    }
+    @media (max-width: 640px) {
+      .hero-controls button { font-size: 0.78rem; padding: 0.6rem 0.8rem; }
+    }
+
     .hero-bar {
       background: var(--sand);
       padding: 1.1rem 0 1.35rem;
@@ -102,9 +173,110 @@
 </head>
 <body>
 
-  <div class="panel-frame">
-    <img class="panel" src="images/hero-a.jpg" width="1672" height="941" alt="HANSEWAY — Bridging Germany and the US for a Bigger Tomorrow." />
+  <div class="panel-frame hero-stage">
+    <img
+      id="hero-poster"
+      class="hero-poster"
+      src="assets/video/hanseway-hero-poster.jpg"
+      width="1920"
+      height="1080"
+      alt="HANSEWAY — Bridging Germany and the US for a Bigger Tomorrow."
+    />
+    <video id="hero-video" poster="assets/video/hanseway-hero-poster.jpg" width="1920" height="1080" playsinline preload="none" hidden></video>
+    <div class="hero-controls">
+      <button type="button" id="hero-play" aria-pressed="false" aria-label="Watch video in English">Watch Video</button>
+      <button type="button" id="hero-deutsch" class="hero-deutsch" aria-pressed="false">Deutsch</button>
+    </div>
   </div>
+  <script>
+    (function () {
+      var poster = document.getElementById("hero-poster");
+      var video = document.getElementById("hero-video");
+      var playBtn = document.getElementById("hero-play");
+      var deutschBtn = document.getElementById("hero-deutsch");
+      if (!poster || !video || !playBtn || !deutschBtn) return;
+
+      var sources = {
+        en: "assets/video/hanseway-hero-en-v1-web.mp4",
+        de: "assets/video/hanseway-hero-de-v1-web.mp4"
+      };
+      var heroLabel = "HANSEWAY — Bridging Germany and the US for a Bigger Tomorrow.";
+      var playToken = 0;
+      var generation = 0;
+
+      function setPressed(lang) {
+        playBtn.setAttribute("aria-pressed", lang === "en" ? "true" : "false");
+        deutschBtn.setAttribute("aria-pressed", lang === "de" ? "true" : "false");
+      }
+
+      function showPoster() {
+        generation++;
+        playToken++;
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+        delete video.dataset.lang;
+        delete video.dataset.generation;
+        video.hidden = true;
+        video.removeAttribute("aria-label");
+        poster.hidden = false;
+        setPressed("");
+      }
+
+      function playLang(lang) {
+        var src = sources[lang];
+        if (!src) return;
+        var token = ++playToken;
+        var gen = ++generation;
+        video.hidden = false;
+        video.muted = false;
+        video.setAttribute("playsinline", "");
+        video.setAttribute("aria-label", heroLabel + (lang === "de" ? " Deutsch." : " English."));
+        video.dataset.generation = String(gen);
+        setPressed(lang);
+
+        video.addEventListener("playing", function onPlaying() {
+          if (token !== playToken) return;
+          poster.hidden = true;
+        }, { once: true });
+
+        if (video.dataset.lang === lang && video.currentSrc) {
+          if (video.ended) {
+            try { video.currentTime = 0; } catch (e) {}
+          }
+        } else {
+          video.dataset.lang = lang;
+          video.src = src;
+        }
+
+        var started = video.play();
+        if (started && typeof started.catch === "function") {
+          started.catch(function () {
+            if (token !== playToken) return;
+            showPoster();
+            playBtn.focus();
+          });
+        }
+      }
+
+      playBtn.addEventListener("click", function () { playLang("en"); });
+      deutschBtn.addEventListener("click", function () { playLang("de"); });
+
+      video.addEventListener("error", function () {
+        if (!video.getAttribute("src")) return;
+        if (video.dataset.generation !== String(generation)) return;
+        showPoster();
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        if (!video.getAttribute("src")) return;
+        event.preventDefault();
+        showPoster();
+        playBtn.focus();
+      });
+    })();
+  </script>
   <div class="hero-bar">
     <div class="wrap hero-bar-inner">
       <div class="brand">HANSEWAY · New York</div>
